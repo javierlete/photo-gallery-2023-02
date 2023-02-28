@@ -1,8 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Camera } from '@capacitor/camera';
 import { CameraResultType, CameraSource, Photo } from '@capacitor/camera/dist/esm/definitions';
+import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
+import { Platform } from '@ionic/angular';
 
 @Injectable({
   providedIn: 'root'
@@ -10,6 +12,8 @@ import { Preferences } from '@capacitor/preferences';
 export class PhotoService {
   public photos: UserPhoto[] = [];
   private PHOTO_STORAGE: string = 'photos';
+
+  constructor(private platform: Platform) {}
 
   public async addNewToGallery() {
     const capturedPhoto = await Camera.getPhoto({
@@ -32,13 +36,16 @@ export class PhotoService {
     const photoList = await Preferences.get({key: this.PHOTO_STORAGE});
     this.photos = JSON.parse(photoList.value!) || [];
 
-    for(let photo of this.photos) {
-      const readFile = await Filesystem.readFile({
-        path: photo.filepath,
-        directory: Directory.Data
-      });
+    if(!this.platform.is('hybrid')) {
+     
+      for(let photo of this.photos) {
+        const readFile = await Filesystem.readFile({
+          path: photo.filepath,
+          directory: Directory.Data
+        });
 
-      photo.webviewPath = `data:image/jpeg;base64,${readFile.data}`;
+        photo.webviewPath = `data:image/jpeg;base64,${readFile.data}`;
+      }
     }
   }
 
@@ -51,7 +58,12 @@ export class PhotoService {
       directory: Directory.Data
     });
 
-    console.log('savedFile', savedFile);
+    if(this.platform.is('hybrid')) {
+      return {
+        filepath: savedFile.uri,
+        webviewPath: Capacitor.convertFileSrc(savedFile.uri),
+      }
+    }
 
     return {
       filepath: fileName,
@@ -60,6 +72,14 @@ export class PhotoService {
   }
 
   private async readAsBase64(photo: Photo) {
+    if(this.platform.is('hybrid')) {
+      const file = await Filesystem.readFile({
+        path: photo.path!
+      });
+
+      return file.data;
+    }
+    
     const response = await fetch(photo.webPath!);
     const blob = await response.blob();
 
