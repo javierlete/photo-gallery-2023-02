@@ -13,7 +13,7 @@ export class PhotoService {
   public photos: UserPhoto[] = [];
   private PHOTO_STORAGE: string = 'photos';
 
-  constructor(private platform: Platform) {}
+  constructor(private platform: Platform) { }
 
   public async addNewToGallery() {
     const capturedPhoto = await Camera.getPhoto({
@@ -23,7 +23,7 @@ export class PhotoService {
     });
 
     const savedImageFile = await this.savePicture(capturedPhoto);
-    
+
     this.photos.unshift(savedImageFile);
 
     Preferences.set({
@@ -33,12 +33,12 @@ export class PhotoService {
   }
 
   public async loadSaved() {
-    const photoList = await Preferences.get({key: this.PHOTO_STORAGE});
+    const photoList = await Preferences.get({ key: this.PHOTO_STORAGE });
     this.photos = JSON.parse(photoList.value!) || [];
 
-    if(!this.platform.is('hybrid')) {
-     
-      for(let photo of this.photos) {
+    if (!this.platform.is('hybrid')) {
+
+      for (let photo of this.photos) {
         const readFile = await Filesystem.readFile({
           path: photo.filepath,
           directory: Directory.Data
@@ -58,7 +58,7 @@ export class PhotoService {
       directory: Directory.Data
     });
 
-    if(this.platform.is('hybrid')) {
+    if (this.platform.is('hybrid')) {
       return {
         filepath: savedFile.uri,
         webviewPath: Capacitor.convertFileSrc(savedFile.uri),
@@ -72,14 +72,14 @@ export class PhotoService {
   }
 
   private async readAsBase64(photo: Photo) {
-    if(this.platform.is('hybrid')) {
+    if (this.platform.is('hybrid')) {
       const file = await Filesystem.readFile({
         path: photo.path!
       });
 
       return file.data;
     }
-    
+
     const response = await fetch(photo.webPath!);
     const blob = await response.blob();
 
@@ -94,6 +94,26 @@ export class PhotoService {
     };
     reader.readAsDataURL(blob);
   });
+
+  async deletePicture(photo: UserPhoto, position: number) {
+    // Remove this photo from the Photos reference data array
+    this.photos.splice(position, 1);
+
+    // Update photos array cache by overwriting the existing photo array
+    Preferences.set({
+      key: this.PHOTO_STORAGE,
+      value: JSON.stringify(this.photos)
+    });
+
+    // delete photo file from filesystem
+    const filename = photo.filepath
+      .substr(photo.filepath.lastIndexOf('/') + 1);
+
+    await Filesystem.deleteFile({
+      path: filename,
+      directory: Directory.Data
+    });
+  }
 }
 
 export interface UserPhoto {
